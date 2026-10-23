@@ -1,4 +1,4 @@
-window.API_BASE_URL = 'http://127.0.0.1:8000/api';
+window.API_BASE_URL = 'http://127.0.0.1:8001/api';
 window.api = {
  async request(path, options={}) { const r=await fetch(`${window.API_BASE_URL}${path}`,{credentials:'include',...options});const data=await r.json().catch(()=>({}));if(!r.ok)throw Error(data.detail||'Permintaan gagal');return data; },
  register(payload){return this.request('/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})},
