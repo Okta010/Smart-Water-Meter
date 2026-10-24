@@ -1,1 +1,119 @@
-<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Registrasi Pelanggan | Smart Water Meter</title><link rel="stylesheet" href="css/style.css"></head><body class="login-page" data-page="register"><main class="login-card"><h1>💧 Smart Water Meter</h1><p class="muted">Pendaftaran akun pelanggan</p><h2>Registrasi Pelanggan</h2><form id="registerForm"><label class="field">ID Pelanggan<input id="customerId" required maxlength="40" autocomplete="username" placeholder="Contoh: PLG00125"></label><label class="field">Nomor Meter<input id="meterId" required maxlength="50" placeholder="Nomor meter air yang terdaftar"></label><label class="field">Nama Lengkap<input id="fullName" required maxlength="120" autocomplete="name"></label><label class="field">Alamat Pelanggan<textarea id="address" required maxlength="300" rows="3"></textarea></label><label class="field">Password<input id="registerPassword" type="password" minlength="8" required autocomplete="new-password" placeholder="Minimal 8 karakter"></label><label class="field">Konfirmasi Password<input id="confirmPassword" type="password" minlength="8" required autocomplete="new-password"></label><button class="btn" type="submit" style="width:100%">Daftar Akun</button></form><p id="error" class="error" role="alert"></p><p id="success" class="success" role="status"></p><p class="foot">Sudah punya akun? <a class="auth-link" href="index.html">Masuk di sini</a></p><p class="foot">Registrasi hanya untuk pelanggan. ID dan nomor meter harus diverifikasi oleh backend.</p></main><script src="js/api.js"></script><script src="js/app.js"></script></body></html>
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>Registrasi Pelanggan | Smart Water Meter</title>
+
+  <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body class="login-page" data-page="register">
+
+  <main class="login-card">
+
+    <h1>💧 Smart Water Meter</h1>
+    <p class="muted">Pendaftaran akun pelanggan</p>
+
+    <h2>Registrasi Pelanggan</h2>
+
+    <form id="registerForm">
+
+      <label class="field">
+        ID Pelanggan
+        <input
+          type="text"
+          id="customerId"
+          placeholder="Contoh: PLG001"
+          maxlength="40"
+          autocomplete="username"
+          required
+        >
+      </label>
+
+      <label class="field">
+        Nomor Meteran
+        <input
+          type="text"
+          id="meterId"
+          placeholder="Contoh: MTR-001"
+          maxlength="50"
+          required
+        >
+      </label>
+
+      <label class="field">
+        Nama Lengkap
+        <input
+          type="text"
+          id="fullName"
+          placeholder="Masukkan nama lengkap"
+          maxlength="120"
+          autocomplete="name"
+          required
+        >
+      </label>
+
+      <label class="field">
+        Alamat Pelanggan
+        <textarea
+          id="address"
+          placeholder="Masukkan alamat lengkap"
+          maxlength="300"
+          rows="3"
+          required
+        ></textarea>
+      </label>
+
+      <label class="field">
+        Password
+        <input
+          type="password"
+          id="registerPassword"
+          placeholder="Minimal 8 karakter"
+          minlength="8"
+          autocomplete="new-password"
+          required
+        >
+      </label>
+
+      <label class="field">
+        Konfirmasi Password
+        <input
+          type="password"
+          id="confirmPassword"
+          placeholder="Ulangi password"
+          minlength="8"
+          autocomplete="new-password"
+          required
+        >
+      </label>
+
+      <button class="btn" type="submit" style="width:100%">
+        Daftar Akun
+      </button>
+
+    </form>
+
+    <p id="error" class="error" role="alert"></p>
+    <p id="success" class="success" role="status"></p>
+
+    <p class="foot">
+      Sudah memiliki akun?
+      <a href="index.html" class="auth-link">Masuk di sini</a>
+    </p>
+
+    <p class="foot">
+      Registrasi hanya untuk pelanggan yang datanya
+      sudah terdaftar di sistem PDAM.
+    </p>
+
+  </main>
+
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+
+</body>
+</html>
