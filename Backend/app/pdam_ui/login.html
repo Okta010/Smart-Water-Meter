@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Login Petugas PDAM | Smart Water Meter</title>
+  <link rel="stylesheet" href="/pdam/assets/styles.css">
+</head>
+<body class="auth-screen">
+  <main class="auth-card">
+    <div class="auth-brand"><span class="water-icon" aria-hidden="true">💧</span> Smart Water Meter</div>
+    <p class="eyebrow">PORTAL PETUGAS PDAM</p>
+    <h1>Masuk ke Dashboard</h1>
+    <p class="subtext">Pantau pembacaan meter pelanggan, pemakaian air, dan indikasi anomali.</p>
+    <form id="officerLogin" autocomplete="on">
+      <label for="identifier">ID Petugas</label>
+      <input id="identifier" name="username" placeholder="Contoh: ADM001" maxlength="40" autocomplete="username" required>
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required>
+      <button type="submit" id="loginButton">Masuk sebagai Petugas</button>
+      <p id="loginError" class="form-error" role="alert" aria-live="polite"></p>
+    </form>
+    <p class="subtext small">Akun petugas dibuat oleh pengelola sistem, bukan melalui registrasi publik.</p>
+  </main>
+  <script src="/pdam/assets/login.js" defer></script>
+</body>
+</html>

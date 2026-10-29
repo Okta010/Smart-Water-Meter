@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard Petugas PDAM | Smart Water Meter</title>
+  <link rel="stylesheet" href="/pdam/assets/styles.css">
+</head>
+<body class="dashboard-screen">
+  <aside class="sidebar">
+    <div class="sidebar-brand"><span aria-hidden="true">💧</span> Smart Water Meter</div>
+    <nav aria-label="Navigasi petugas">
+      <a class="nav-current" href="/pdam/dashboard">▦ &nbsp; Dashboard PDAM</a>
+      <a href="#pelanggan">♙ &nbsp; Daftar Pelanggan</a>
+      <a href="#tambah">＋ &nbsp; Tambah Pelanggan</a>
+      <a href="#input">◴ &nbsp; Input Meter (Demo)</a>
+      <button id="logoutButton" type="button">↪ &nbsp; Keluar</button>
+    </nav>
+    <div class="sidebar-note">Mode pengembangan. Data simulasi untuk pengujian, bukan laporan tagihan PDAM.</div>
+  </aside>
+  <main class="content">
+    <header class="page-head">
+      <div><p class="eyebrow">DASHBOARD PETUGAS</p><h1>Monitoring Pelanggan PDAM</h1>
+        <p class="subtext">Selamat datang, <strong id="officerName">Petugas</strong>. Pantau meter dan anomali dari database.</p></div>
+      <span class="chip">DEMO / DATA UJI</span>
+    </header>
+    <div id="notice" class="notice" role="status" aria-live="polite">Memuat data dari backend...</div>
+    <section class="stats" aria-label="Ringkasan data PDAM">
+      <article class="stat"><p>Total Pelanggan</p><strong id="totalPelanggan">—</strong></article>
+      <article class="stat"><p>Total Meter</p><strong id="totalMeter">—</strong></article>
+      <article class="stat"><p>Indikasi Anomali</p><strong id="totalAnomali">—</strong></article>
+      <article class="stat"><p>Belum Ada Pembacaan</p><strong id="belumDibaca">—</strong></article>
+    </section>
+    <section id="pelanggan" class="panel">
+      <div class="panel-head">
+        <div><h2>Daftar Pelanggan</h2><p class="subtext small">Klik "Riwayat" untuk melihat pembacaan tiap pelanggan.</p></div>
+        <label class="search-wrap">Cari pelanggan <input id="searchCustomer" type="search" placeholder="Nama, ID, nomor meter, alamat" aria-label="Cari pelanggan"></label>
+      </div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>ID</th><th>Nama</th><th>Nomor Meter</th><th>Alamat</th><th>Pemakaian Terakhir</th><th>Status</th><th>Aksi</th></tr></thead>
+        <tbody id="customerRows"><tr><td colspan="7">Memuat...</td></tr></tbody>
+      </table></div>
+    </section>
+    <section id="tambah" class="panel">
+      <div class="panel-head"><div><h2>Tambah Pelanggan PDAM</h2>
+        <p class="subtext small">Petugas memasukkan identitas pelanggan terlebih dahulu. Pelanggan kemudian membuat kata sandi di portal pelanggan.</p></div></div>
+      <form id="customerForm" class="customer-form">
+        <label>ID Pelanggan<input id="newCustomerId" maxlength="40" required placeholder="Contoh: PLG005"></label>
+        <label>Nomor Meter<input id="newMeter" maxlength="50" required placeholder="Contoh: MTR-005"></label>
+        <label>Nama Lengkap<input id="newName" maxlength="120" required placeholder="Nama sesuai data PDAM"></label>
+        <label>Alamat Lengkap<textarea id="newAddress" maxlength="300" rows="2" required></textarea></label>
+        <button type="submit" id="customerSubmit">Simpan Data Pelanggan</button>
+      </form>
+      <p id="customerMessage" class="form-message" role="status" aria-live="polite"></p>
+    </section>
+    <section id="historyPanel" class="panel" hidden>
+      <div class="panel-head"><div><h2 id="historyTitle">Riwayat Pembacaan</h2><p class="subtext small">Pembacaan disimpan di database backend.</p></div>
+        <button id="closeHistory" type="button" class="secondary-button">Tutup</button></div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Waktu</th><th>Angka Meter Kumulatif (m³)</th><th>Pemakaian (m³)</th></tr></thead>
+        <tbody id="historyRows"></tbody>
+      </table></div>
+    </section>
+    <section id="input" class="panel">
+      <h2>Input Pembacaan Manual</h2>
+      <p class="subtext small">Untuk demonstrasi sebelum AI dan ESP32-CAM terintegrasi. Mengubah database lokal.</p>
+      <form id="readingForm" class="reading-form">
+        <label>Pelanggan<select id="readingCustomer" required><option value="">Pilih pelanggan</option></select></label>
+        <label>Angka meter kumulatif (m³)<input id="meterValue" type="number" min="0" step="0.001" required placeholder="Contoh: 130.250"></label>
+        <button type="submit" id="readingButton">Simpan Pembacaan Demo</button>
+      </form>
+      <p id="readingMessage" class="form-message" role="status" aria-live="polite"></p>
+    </section>
+    <p class="footer-note">Pembacaan demo dan indikasi anomali bukan bukti kebocoran atau konsumsi air resmi.</p>
+  </main>
+  <script src="/pdam/assets/dashboard.js" defer></script>
+</body>
+</html>

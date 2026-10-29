@@ -1,24 +1,31 @@
-# Smart Water Meter — Frontend revisi login dan registrasi
+# Smart Water Meter — Frontend
 
-## Halaman
-- `index.html`: login dengan ID Pelanggan atau ID Petugas + password.
-- `register.html`: registrasi mandiri pelanggan dengan ID Pelanggan, nomor meter, nama, alamat, password.
-- Dashboard dan halaman riwayat/notifikasi tetap dipertahankan.
+## 1. Deskripsi
+Frontend Smart Water Meter digunakan pelanggan untuk login, registrasi, melihat pemakaian air, riwayat pembacaan meter, dan notifikasi anomali.
 
-## Menjalankan
-Buka `index.html` menggunakan Live Server di VS Code. Backend diatur pada `js/api.js` (`http://127.0.0.1:8000/api`).
+## 2. Fitur
+- `index.html`: Login pelanggan.
+- `register.html`: Registrasi pelanggan.
+- `dashboard-pelanggan.html`: Dashboard pemakaian air.
+- `riwayat.html`: Riwayat pembacaan meter.
+- `notifikasi.html`: Notifikasi anomali.
 
-## Penting: kontrak API yang harus dibuat tim backend
-`POST /api/register` menerima JSON:
-```json
-{"id_pelanggan":"PLG00125","nomor_meter":"MTR00125","nama":"Contoh Nama","alamat":"Contoh alamat","password":"contoh-password-kuat"}
-```
-Respons sukses: HTTP 201, JSON misalnya `{"message":"Registrasi berhasil"}`.
-Error: HTTP 400/409 dengan `{"detail":"..."}`.
-`POST /api/login` menerima `{ "identifier": "PLG00125", "password": "..." }`; mengembalikan `{ "id": "PLG00125", "nama": "...", "role": "pelanggan" }` atau `role: "pdam"` dan mengatur sesi melalui cookie HttpOnly.
-Endpoint lain yang digunakan: `GET /api/me`, `POST /api/logout`, `GET /api/pelanggan`, `GET /api/riwayat`.
+## 3. Menjalankan Aplikasi
+1. Jalankan Backend FastAPI pada port `8001`.
+2. Jalankan Frontend menggunakan Live Server atau server HTTP lokal.
+3. Buka halaman `index.html` melalui browser.
 
-**Backend FastAPI dari paket sebelumnya belum memiliki endpoint `/api/register`.** Registrasi akan menampilkan kesalahan sampai backend diperbarui. Jangan menyimpan password di JavaScript atau `localStorage`. Backend harus memverifikasi kepemilikan ID dan nomor meter (misalnya OTP/kode aktivasi), hash password, dan membatasi percobaan login/registrasi. ID petugas tidak boleh bisa didaftarkan lewat halaman publik.
+## 4. Konfigurasi API
+Alamat API diatur pada `js/api.js`:
 
-## Deploy
-File statis cocok untuk Cloudflare. Atur `API_BASE_URL` ke alamat API HTTPS produksi dan konfigurasi cookie/CORS yang sesuai.
+`http://127.0.0.1:8001/api`
+
+Endpoint yang digunakan: `/api/register`, `/api/login`, `/api/me`, `/api/logout`, `/api/pelanggan`, dan `/api/riwayat`.
+
+## 5. Portal Petugas
+Petugas PDAM menggunakan portal Backend:
+
+`http://127.0.0.1:8001/pdam/login`
+
+## 6. Catatan
+Untuk deployment, gunakan alamat Backend HTTPS dan konfigurasi CORS serta cookie sesi dengan benar. Notifikasi anomali merupakan indikasi yang memerlukan pemeriksaan lebih lanjut.
