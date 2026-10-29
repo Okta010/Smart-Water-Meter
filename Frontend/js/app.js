@@ -1,18 +1,375 @@
-const $=id=>document.getElementById(id);
-const fmt=n=>Number(n).toLocaleString('id-ID',{maximumFractionDigits:2});
-const safe=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const statusBadge=s=>`<span class="badge ${s==='normal'?'good':''}">${s==='normal'?'Normal':'Indikasi anomali'}</span>`;
-const role=()=>sessionStorage.getItem('role');
-async function logout(){try{await window.api.logout()}finally{sessionStorage.removeItem('role');location.href='index.html'}}
-function chart(id,labels,values){const canvas=$(id);if(!canvas)return;new Chart(canvas,{type:'bar',data:{labels,datasets:[{label:'Pemakaian (m³)',data:values,backgroundColor:'#168bb6',borderRadius:6}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,title:{display:true,text:'m³'}}}}})}
-async function init(){const page=document.body.dataset.page;
-if(page==='register'){$('registerForm').addEventListener('submit',async e=>{e.preventDefault();$('error').textContent='';$('success').textContent='';const password=$('registerPassword').value;if(password!==$('confirmPassword').value){$('error').textContent='Konfirmasi password tidak cocok.';return}const btn=$('registerForm').querySelector('button[type=submit]');btn.disabled=true;try{await window.api.register({id_pelanggan:$('customerId').value.trim(),nomor_meter:$('meterId').value.trim(),nama:$('fullName').value.trim(),alamat:$('address').value.trim(),password});$('success').textContent='Registrasi berhasil. Silakan login menggunakan ID Pelanggan dan password.';$('registerForm').reset()}catch(err){$('error').textContent=err.message}finally{btn.disabled=false}});return}
-if(page==='login'){$('loginForm').addEventListener('submit',async e=>{e.preventDefault();$('error').textContent='';try{const u=await window.api.login($('identifier').value,$('password').value);sessionStorage.setItem('role',u.role);location.href=u.role==='pdam'?'dashboard-pdam.html':'dashboard-pelanggan.html'}catch(err){$('error').textContent=err.message}});return}
-try{const u=await window.api.me();sessionStorage.setItem('role',u.role);if(page==='pdam'&&u.role!=='pdam'){location.href='dashboard-pelanggan.html';return}if(page==='pelanggan'&&u.role!=='pelanggan'){location.href='dashboard-pdam.html';return}}catch(e){location.href='index.html';return}
-document.querySelectorAll('[data-logout]').forEach(b=>b.addEventListener('click',logout));
-try{const people=await window.api.pelanggan(),hist=await window.api.riwayat();const mine=people[0];if(page==='pelanggan'){$('name').textContent=mine.nama;$('usage').textContent=fmt(mine.hariIni)+' m³';$('average').textContent=fmt(mine.rata)+' m³';$('meter').textContent=fmt(hist.at(-1).meter)+' m³';$('warning').innerHTML=mine.status==='anomali'?`<strong>Indikasi anomali pemakaian air</strong><p>Pemakaian hari ini ${fmt(mine.hariIni)} m³, lebih tinggi dari rata-rata ${fmt(mine.rata)} m³. Periksa kemungkinan kebocoran pipa. Ini bukan konfirmasi kebocoran.</p>`:'<strong>Pemakaian terpantau normal.</strong>';chart('usageChart',hist.map(x=>x.tanggal.slice(5)),hist.map(x=>x.pemakaian))}
-if(page==='pdam'){$('total').textContent=people.length;$('anomalies').textContent=people.filter(p=>p.status==='anomali').length;$('normal').textContent=people.filter(p=>p.status==='normal').length;const render=()=>{const q=$('search').value.toLowerCase();$('peopleRows').innerHTML=people.filter(p=>[p.nama,p.id,p.alamat].some(x=>x.toLowerCase().includes(q))).map(p=>`<tr><td>${safe(p.id)}</td><td>${safe(p.nama)}</td><td>${safe(p.alamat)}</td><td>${fmt(p.hariIni)} m³</td><td>${statusBadge(p.status)}</td></tr>`).join('')};$('search').addEventListener('input',render);render()}
-if(page==='riwayat'){$('historyRows').innerHTML=hist.slice().reverse().map(h=>`<tr><td>${safe(h.tanggal)}</td><td>${fmt(h.meter)} m³</td><td>${fmt(h.pemakaian)} m³</td></tr>`).join('');chart('historyChart',hist.map(h=>h.tanggal.slice(5)),hist.map(h=>h.pemakaian))}
-if(page==='notifikasi'){$('alerts').innerHTML=people.filter(p=>p.status==='anomali'&&(role()==='pdam'||p.id===mine.id)).map(p=>`<div class="alert"><strong>${safe(p.nama)} (${safe(p.id)})</strong><p>${safe(p.alamat)}</p><p>Pemakaian ${fmt(p.hariIni)} m³; rata-rata ${fmt(p.rata)} m³. Perlu pemeriksaan.</p><small>Pembacaan: ${safe(p.waktu)}</small></div>`).join('')||'<p>Tidak ada indikasi anomali.</p>'}
-}catch(e){const box=$('error');if(box)box.textContent=e.message;console.error(e)}}
-document.addEventListener('DOMContentLoaded',init);
+
+const $ = (id) => document.getElementById(id);
+
+const fmt = (value) => {
+    const number = Number(value);
+
+    return Number.isFinite(number)
+        ? number.toLocaleString('id-ID', {
+            maximumFractionDigits: 2
+        })
+        : '0';
+};
+
+const safe = (value) =>
+    String(value ?? '').replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    })[char]);
+
+function showError(message) {
+    const errorBox = $('error');
+
+    if (errorBox) {
+        errorBox.textContent = message;
+    } else {
+        console.error(message);
+    }
+}
+
+async function logout() {
+    try {
+        await window.api.logout();
+    } catch (error) {
+        console.error('Gagal mengakhiri sesi:', error);
+    } finally {
+        sessionStorage.removeItem('role');
+        location.href = 'index.html';
+    }
+}
+
+function chart(id, labels, values) {
+    const canvas = $(id);
+
+    if (!canvas || typeof Chart === 'undefined') {
+        return;
+    }
+
+    new Chart(canvas, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label: 'Pemakaian (m³)',
+                data: values,
+                backgroundColor: '#168bb6',
+                borderRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'm³'
+                    }
+                }
+            }
+        }
+    });
+}
+
+async function init() {
+    const page = document.body.dataset.page;
+
+    // REGISTRASI PELANGGAN
+    if (page === 'register') {
+        const form = $('registerForm');
+
+        if (!form) return;
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            const errorBox = $('error');
+            const successBox = $('success');
+
+            if (errorBox) errorBox.textContent = '';
+            if (successBox) successBox.textContent = '';
+
+            const password = $('registerPassword').value;
+            const confirmation = $('confirmPassword').value;
+
+            if (password !== confirmation) {
+                showError('Konfirmasi password tidak cocok.');
+                return;
+            }
+
+            const button = form.querySelector(
+                'button[type="submit"]'
+            );
+
+            if (button) button.disabled = true;
+
+            try {
+                await window.api.register({
+                    id_pelanggan: $('customerId').value.trim(),
+                    nomor_meter: $('meterId').value.trim(),
+                    nama: $('fullName').value.trim(),
+                    alamat: $('address').value.trim(),
+                    password: password
+                });
+
+                if (successBox) {
+                    successBox.textContent =
+                        'Registrasi berhasil. Silakan login menggunakan ID Pelanggan dan password.';
+                }
+
+                form.reset();
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                if (button) button.disabled = false;
+            }
+        });
+
+        return;
+    }
+
+    // LOGIN KHUSUS PELANGGAN
+    if (page === 'login') {
+        const form = $('loginForm');
+
+        if (!form) return;
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            const errorBox = $('error');
+
+            if (errorBox) errorBox.textContent = '';
+
+            const identifier = $('identifier').value.trim();
+            const password = $('password').value;
+            const button = form.querySelector(
+                'button[type="submit"]'
+            );
+
+            if (button) button.disabled = true;
+
+            try {
+                const account = await window.api.login(
+                    identifier,
+                    password
+                );
+
+                // Halaman Frontend hanya untuk pelanggan.
+                if (account.role !== 'pelanggan') {
+                    try {
+                        await window.api.logout();
+                    } catch (error) {
+                        console.error(error);
+                    }
+
+                    sessionStorage.removeItem('role');
+
+                    showError(
+                        'Halaman ini khusus pelanggan. Petugas PDAM silakan menggunakan portal PDAM di http://127.0.0.1:8001/pdam/login.'
+                    );
+
+                    return;
+                }
+
+                sessionStorage.setItem('role', 'pelanggan');
+
+                location.href = 'dashboard-pelanggan.html';
+            } catch (error) {
+                showError(error.message || 'Login gagal. Periksa ID dan password.');
+            } finally {
+                if (button) button.disabled = false;
+            }
+        });
+
+        return;
+    }
+
+    // HALAMAN YANG HANYA BOLEH DIAKSES PELANGGAN
+    const protectedPages = [
+        'pelanggan',
+        'riwayat',
+        'notifikasi'
+    ];
+
+    if (!protectedPages.includes(page)) {
+        return;
+    }
+
+    let account;
+
+    try {
+        account = await window.api.me();
+
+        if (account.role !== 'pelanggan') {
+            sessionStorage.removeItem('role');
+            location.href = 'index.html';
+            return;
+        }
+
+        sessionStorage.setItem('role', 'pelanggan');
+    } catch (error) {
+        sessionStorage.removeItem('role');
+        location.href = 'index.html';
+        return;
+    }
+
+    document.querySelectorAll('[data-logout]').forEach((button) => {
+        button.addEventListener('click', logout);
+    });
+
+    try {
+        let people = [];
+        let history = [];
+        let mine = null;
+
+        // Ambil data pelanggan untuk dashboard dan notifikasi.
+        if (page === 'pelanggan' || page === 'notifikasi') {
+            const result = await window.api.pelanggan();
+
+            people = Array.isArray(result) ? result : [];
+
+            mine =
+                people.find(
+                    (person) =>
+                        String(person.id) === String(account.id)
+                ) ||
+                people[0] ||
+                null;
+        }
+
+        // Ambil riwayat jika diperlukan.
+        if (page === 'pelanggan' || page === 'riwayat') {
+            const result = await window.api.riwayat();
+
+            history = Array.isArray(result) ? result : [];
+        }
+
+        // DASHBOARD PELANGGAN
+        if (page === 'pelanggan') {
+            if ($('name')) {
+                $('name').textContent =
+                    mine?.nama || account.nama || 'Pelanggan';
+            }
+
+            if ($('usage')) {
+                $('usage').textContent =
+                    mine ? `${fmt(mine.hariIni)} m³` : '0 m³';
+            }
+
+            if ($('average')) {
+                $('average').textContent =
+                    mine ? `${fmt(mine.rata)} m³` : '0 m³';
+            }
+
+            if ($('meter')) {
+                $('meter').textContent = history.length
+                    ? `${fmt(history[history.length - 1].meter)} m³`
+                    : 'Belum ada data';
+            }
+
+            if ($('warning')) {
+                if (!mine) {
+                    $('warning').textContent =
+                        'Data pelanggan belum tersedia.';
+                } else if (mine.status === 'anomali') {
+                    $('warning').innerHTML = `
+                        <strong>Indikasi anomali pemakaian air</strong>
+                        <p>
+                            Pemakaian tercatat ${fmt(mine.hariIni)} m³,
+                            lebih tinggi dari rata-rata
+                            ${fmt(mine.rata)} m³.
+                            Periksa kemungkinan kebocoran.
+                            Ini bukan konfirmasi kebocoran.
+                        </p>
+                    `;
+                } else {
+                    $('warning').textContent =
+                        'Pemakaian terpantau normal.';
+                }
+            }
+
+            chart(
+                'usageChart',
+                history.map((item) =>
+                    String(item.tanggal || '').slice(5)
+                ),
+                history.map((item) => Number(item.pemakaian) || 0)
+            );
+        }
+
+        // RIWAYAT PEMBACAAN METER
+        if (page === 'riwayat') {
+            if ($('historyRows')) {
+                $('historyRows').innerHTML = history.length
+                    ? history.slice().reverse().map((item) => `
+                        <tr>
+                            <td>${safe(item.tanggal)}</td>
+                            <td>${fmt(item.meter)} m³</td>
+                            <td>${fmt(item.pemakaian)} m³</td>
+                        </tr>
+                    `).join('')
+                    : `
+                        <tr>
+                            <td colspan="3">
+                                Belum ada data pembacaan meter.
+                            </td>
+                        </tr>
+                    `;
+            }
+
+            chart(
+                'historyChart',
+                history.map((item) =>
+                    String(item.tanggal || '').slice(5)
+                ),
+                history.map((item) => Number(item.pemakaian) || 0)
+            );
+        }
+
+        // NOTIFIKASI PELANGGAN
+        if (page === 'notifikasi') {
+            const alerts = $('alerts');
+
+            if (alerts) {
+                if (mine && mine.status === 'anomali') {
+                    alerts.innerHTML = `
+                        <div class="alert">
+                            <strong>
+                                Indikasi anomali pemakaian air
+                            </strong>
+                            <p>${safe(mine.nama)}</p>
+                            <p>
+                                Pemakaian tercatat ${fmt(mine.hariIni)} m³;
+                                rata-rata ${fmt(mine.rata)} m³.
+                            </p>
+                            <small>
+                                Pembacaan: ${safe(mine.waktu || '-')}
+                            </small>
+                            <p>
+                                Periksa kondisi meter dan instalasi air.
+                                Indikasi ini belum membuktikan adanya kebocoran.
+                            </p>
+                        </div>
+                    `;
+                } else {
+                    alerts.innerHTML =
+                        '<p>Tidak ada indikasi anomali pemakaian air.</p>';
+                }
+            }
+        }
+    } catch (error) {
+        showError(error.message || 'Gagal mengambil data dari server.');
+        console.error(error);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', init);
