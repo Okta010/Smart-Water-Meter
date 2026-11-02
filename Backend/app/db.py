@@ -3,7 +3,16 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, UniqueConstraint, create_engine
+from sqlalchemy import (
+    JSON,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+    create_engine,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
 
@@ -50,6 +59,82 @@ class Reading(Base):
     customer: Mapped[Customer] = relationship(back_populates="readings")
     __table_args__ = (UniqueConstraint("customer_id", "measured_at", name="uq_customer_reading_time"),)
 
+class AIReadingAttempt(Base):
+    __tablename__ = "ai_reading_attempts"
+
+    id: Mapped[int] = mapped_column(
+        Integer, primary_key=True, autoincrement=True
+    )
+
+    customer_id: Mapped[str] = mapped_column(
+        ForeignKey("customers.customer_id"),
+        nullable=False,
+        index=True,
+    )
+
+    measured_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False
+    )
+
+    file_name: Mapped[str] = mapped_column(
+        String(255), nullable=False
+    )
+
+    area_deteksi: Mapped[list[list[float]] | None] = mapped_column(
+        JSON, nullable=True
+    )
+
+    confidence_score: Mapped[float | None] = mapped_column(
+        Float, nullable=True
+    )
+
+    hasil_ocr: Mapped[str | None] = mapped_column(
+        String(32), nullable=True
+    )
+
+    ocr_confidence: Mapped[float | None] = mapped_column(
+        Float, nullable=True
+    )
+
+    nilai_pembacaan: Mapped[float | None] = mapped_column(
+        Float, nullable=True
+    )
+
+    status_validasi: Mapped[str] = mapped_column(
+        String(30), nullable=False
+    )
+
+    alasan: Mapped[str | None] = mapped_column(
+        String(500), nullable=True
+    )
+
+    blur_score: Mapped[float | None] = mapped_column(
+        Float, nullable=True
+    )
+
+    model_version: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )
+
+    latency_ms: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )
+
+    status_penyimpanan: Mapped[str] = mapped_column(
+        String(30), nullable=False
+    )
+
+    alasan_penyimpanan: Mapped[str | None] = mapped_column(
+        String(500), nullable=True
+    )
+
+    reading_id: Mapped[int | None] = mapped_column(
+        ForeignKey("readings.id"), nullable=True
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=utc_now
+    )
 
 def build_db(database_url: str | None = None):
     db_file = Path(__file__).resolve().parents[1] / "smart_water_meter.db"
