@@ -15,7 +15,17 @@ Untuk produksi diperlukan verifikasi kepemilikan tambahan.
 import os
 from datetime import datetime, timedelta, timezone
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi import (
+    Depends,
+    FastAPI,
+    HTTPException,
+    Request,
+    Response,
+    UploadFile,
+    File,
+    Form,
+)
+
 from fastapi.middleware.cors import CORSMiddleware
 
 from sqlalchemy import select
@@ -23,6 +33,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .db import (
+    AIReadingAttempt,
     Customer,
     Officer,
     Reading,
@@ -40,6 +51,8 @@ from .security import (
     verify_password,
 )
 
+from .ai import get_predictor
+
 # ==========================================
 # PORTAL ADMINISTRASI PDAM
 # ==========================================
@@ -49,7 +62,7 @@ from .pdam_portal import install_pdam_portal
 
 COOKIE_NAME = "swm_session"
 SESSION_HOURS = 8
-
+MAX_IMAGE_SIZE = 10 * 1024 * 1024  # Maksimal 10 MB
 
 # ==========================================
 # NORMALISASI DATA TEKS
@@ -626,6 +639,298 @@ def create_app(database_url: str | None = None) -> FastAPI:
                 "Hasil input manual, "
                 "belum dari AI atau ESP32-CAM"
             ),
+        }
+
+    # ==========================================
+    # PREDIKSI FOTO METER MENGGUNAKAN AI
+    # ==========================================
+
+    @app.post("/api/ai/predict")
+    def predict_meter_image(
+        file: UploadFile = File(...),
+        id_pelanggan: str = Form(...),
+        waktu: datetime = Form(...),
+        officer: dict = Depends(require_officer),
+        db: Session = Depends(db_session),
+    ):
+        # 1. Memeriksa pelanggan
+        customer = db.get(
+            Customer,
+            id_pelanggan.strip(),
+        )
+
+        if not customer:
+            raise HTTPException(
+                status_code=404,
+                detail="Pelanggan tidak ditemukan",
+            )
+
+        # 2. Menormalisasi waktu seperti endpoint pembacaan manual
+        if waktu.tzinfo is None:
+            measured_at = waktu
+        else:
+            measured_at = (
+                waktu.astimezone(timezone.utc)
+                .replace(tzinfo=None)
+            )
+
+        # 3. Memeriksa format foto
+        allowed_types = {
+            "image/jpeg",
+            "image/png",
+            "image/webp",
+        }
+
+        if file.content_type not in allowed_types:
+            raise HTTPException(
+                status_code=415,
+                detail="Format file harus JPG, PNG, atau WEBP",
+            )
+
+        # 4. Membaca foto dengan batas ukuran 10 MB
+        image_bytes = file.file.read(MAX_IMAGE_SIZE + 1)
+
+        if not image_bytes:
+            raise HTTPException(
+                status_code=400,
+                detail="File foto kosong",
+            )
+
+        if len(image_bytes) > MAX_IMAGE_SIZE:
+            raise HTTPException(
+                status_code=413,
+                detail="Ukuran foto maksimal 10 MB",
+            )
+
+        # 5. Menjalankan model AI
+        try:
+            predictor = get_predictor()
+            hasil = predictor.predict(image_bytes)
+
+        except Exception:
+            import logging
+
+            logging.exception(
+                "Terjadi kesalahan saat prediksi AI"
+            )
+
+            raise HTTPException(
+                status_code=500,
+                detail="Gagal memproses foto meter menggunakan AI",
+            )
+
+        # 6. Mengambil hasil prediksi
+        status_ai = str(
+            hasil.get("status_validasi") or "perlu_verifikasi"
+        )
+
+        alasan_ai = str(
+            hasil.get("alasan") or ""
+        )
+
+        nilai_raw = hasil.get("nilai_pembacaan")
+
+        nilai = (
+            float(nilai_raw)
+            if nilai_raw is not None
+            else None
+        )
+
+        # Status awal penyimpanan
+        status_simpan = "tidak_disimpan"
+        alasan_simpan = (
+            f"Validasi AI belum lolos: {status_ai}. {alasan_ai}"
+        )
+
+        pemakaian = None
+        pemakaian_24_jam = None
+        reading_id = None
+        reading_baru = None
+
+        # 7. Memeriksa apakah hasil AI layak disimpan
+        if status_ai == "perlu_rescan":
+
+            status_simpan = "tidak_disimpan"
+            alasan_simpan = (
+                "Foto perlu diambil ulang karena area meter "
+                "belum berhasil diproses dengan baik."
+            )
+
+        elif status_ai == "perlu_verifikasi":
+
+            status_simpan = "menunggu_verifikasi"
+            alasan_simpan = (
+                "Hasil pembacaan AI perlu diperiksa secara manual."
+            )
+
+        elif status_ai == "valid" and nilai is not None:
+
+            # Mengambil pembacaan resmi terakhir
+            last = db.scalar(
+                select(Reading)
+                .where(
+                    Reading.customer_id
+                    == customer.customer_id
+                )
+                .order_by(
+                    Reading.measured_at.desc()
+                )
+                .limit(1)
+            )
+
+            status_simpan = "tersimpan"
+            alasan_simpan = (
+                "Validasi AI dan pemeriksaan anomali berhasil."
+            )
+
+            # Jika sudah ada pembacaan sebelumnya
+            if last:
+
+                # Memeriksa urutan waktu
+                if measured_at <= last.measured_at:
+
+                    status_simpan = "menunggu_verifikasi"
+                    alasan_simpan = (
+                        "Waktu pembacaan tidak lebih baru "
+                        "dari pembacaan sebelumnya."
+                    )
+
+                # Memeriksa angka meter yang menurun
+                elif nilai < last.meter_value:
+
+                    status_simpan = "menunggu_verifikasi"
+                    alasan_simpan = (
+                        "Angka meter lebih rendah dari pembacaan "
+                        "sebelumnya. Perlu pemeriksaan manual."
+                    )
+
+                else:
+
+                    # Menghitung selisih angka meter
+                    pemakaian = round(
+                        nilai - last.meter_value,
+                        3,
+                    )
+
+                    # Menghitung estimasi pemakaian per 24 jam
+                    elapsed_hours = (
+                        measured_at - last.measured_at
+                    ).total_seconds() / 3600
+
+                    if elapsed_hours <= 0:
+
+                        status_simpan = "menunggu_verifikasi"
+                        alasan_simpan = (
+                            "Interval waktu pembacaan tidak valid."
+                        )
+
+                    else:
+
+                        pemakaian_24_jam = round(
+                            pemakaian * 24 / elapsed_hours,
+                            3,
+                        )
+
+                        # Batas anomali: lebih dari 50 m³ per 24 jam
+                        if pemakaian_24_jam > 50:
+
+                            status_simpan = "menunggu_verifikasi"
+                            alasan_simpan = (
+                                "Estimasi pemakaian melebihi "
+                                "50 m³ dalam 24 jam. "
+                                "Perlu pemeriksaan manual."
+                            )
+
+            else:
+
+                # Pembacaan pertama menjadi nilai awal meter
+                pemakaian = 0.0
+
+            # Membuat pembacaan resmi jika semua pemeriksaan lolos
+            if status_simpan == "tersimpan":
+
+                reading_baru = Reading(
+                    customer_id=customer.customer_id,
+                    measured_at=measured_at,
+                    meter_value=nilai,
+                    daily_usage=pemakaian,
+                )
+
+        elif status_ai == "valid":
+
+            status_simpan = "tidak_disimpan"
+            alasan_simpan = (
+                "Hasil AI berstatus valid, tetapi "
+                "nilai pembacaan tidak tersedia."
+            )
+
+        else:
+
+            status_simpan = "menunggu_verifikasi"
+            alasan_simpan = (
+                "Status validasi AI tidak dikenali. "
+                "Perlu pemeriksaan manual."
+            )
+
+        # 8. Menyimpan pembacaan resmi dan riwayat percobaan
+        try:
+
+            if reading_baru:
+
+                db.add(reading_baru)
+                db.flush()
+
+                reading_id = reading_baru.id
+
+            attempt = AIReadingAttempt(
+                customer_id=customer.customer_id,
+                measured_at=measured_at,
+                file_name=(file.filename or "foto_meter")[:255],
+                area_deteksi=hasil.get("area_deteksi"),
+                confidence_score=hasil.get("confidence_score"),
+                hasil_ocr=hasil.get("hasil_ocr"),
+                ocr_confidence=hasil.get("ocr_confidence"),
+                nilai_pembacaan=nilai,
+                status_validasi=status_ai,
+                alasan=alasan_ai[:500] or None,
+                blur_score=hasil.get("blur_score"),
+                model_version=hasil.get("model_version"),
+                latency_ms=(
+                    int(hasil["latency_ms"])
+                    if hasil.get("latency_ms") is not None
+                    else None
+                ),
+                status_penyimpanan=status_simpan,
+                alasan_penyimpanan=alasan_simpan[:500],
+                reading_id=reading_id,
+            )
+
+            db.add(attempt)
+            db.commit()
+
+        except IntegrityError:
+
+            db.rollback()
+
+            raise HTTPException(
+                status_code=409,
+                detail="Pembacaan sudah tercatat atau terjadi konflik data.",
+            )
+
+        # 9. Mengembalikan hasil ke frontend
+        return {
+            "message": "Prediksi AI selesai",
+            "nama_file": file.filename,
+            "id_pelanggan": customer.customer_id,
+            "hasil": hasil,
+            "penyimpanan": {
+                "status": status_simpan,
+                "alasan": alasan_simpan,
+                "attempt_id": attempt.id,
+                "reading_id": reading_id,
+                "pemakaian": pemakaian,
+                "estimasi_pemakaian_24_jam": pemakaian_24_jam,
+            },
         }
 
     # ======================================
