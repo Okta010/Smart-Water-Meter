@@ -1,4 +1,3 @@
-
 """
 Backend FastAPI - Smart Water Meter
 
@@ -6,6 +5,7 @@ Sistem terdiri dari:
 1. Portal Pelanggan
 2. Portal Administrasi PDAM
 3. API pengelolaan pelanggan dan pembacaan meter
+4. Endpoint upload foto dari ESP32-CAM (/watermeter/upload)
 
 Catatan:
 Registrasi berbasis kecocokan identitas masih untuk pengujian.
@@ -945,6 +945,17 @@ def create_app(database_url: str | None = None) -> FastAPI:
         summary=summary,
         history=history,
     )
+
+    # ======================================
+    # ENDPOINT UPLOAD FOTO DARI ESP32-CAM
+    # (POST /watermeter/upload)
+    # ======================================
+    # Import dilakukan di dalam fungsi supaya tidak terjadi
+    # circular import jika water_upload.py mengimpor modul lain.
+
+    from .water_upload import router as water_router
+
+    app.include_router(water_router)
 
     return app
 
